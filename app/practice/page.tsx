@@ -28,11 +28,13 @@ import {
   Code,
   FileCode,
   Volume2,
-  VolumeX
+  VolumeX,
+  Phone
 } from 'lucide-react'
 import { groqAPI, GroqAPI } from '@/lib/groq-api'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
+import { omnidimensionAPI, OmniDimensionAPI, OmniDimensionConfig } from '@/lib/omnidimension-api'
 
 interface Message {
   id: string
@@ -112,6 +114,16 @@ export default function PracticePage() {
   const recognitionRef = useRef<any>(null);
 
   const [isAIVoiceOn, setIsAIVoiceOn] = useState(false);
+
+  // Add new state variables for call functionality
+  const [showCallInterface, setShowCallInterface] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
+  const [availableAgents, setAvailableAgents] = useState<any[]>([])
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false)
+  const [isDispatchingCall, setIsDispatchingCall] = useState(false)
+  const [callLogs, setCallLogs] = useState<any[]>([])
+  const [showCallLogs, setShowCallLogs] = useState(false)
 
   useEffect(() => {
     // Load practice configuration from localStorage
@@ -262,6 +274,151 @@ export default function PracticePage() {
       window.speechSynthesis.speak(utter);
     }
   }, [messages, isAIVoiceOn]);
+
+  // Load available agents when call interface is opened
+  useEffect(() => {
+    if (showCallInterface && availableAgents.length === 0) {
+      loadAvailableAgents()
+    }
+  }, [showCallInterface])
+
+  // Function to load available agents
+  const loadAvailableAgents = async () => {
+    setIsLoadingAgents(true)
+    try {
+      console.log('Loading agents...')
+      const agents = await omnidimensionAPI.listInterviewAgents()
+      console.log('Agents response:', agents)
+      setAvailableAgents(agents || [])
+      
+      // If no agents returned, add a fallback demo agent
+      if (!agents || agents.length === 0) {
+        console.log('No agents found, adding demo agent')
+        setAvailableAgents([
+          {
+            id: 2799,
+            name: 'InterviewBot (Demo Agent)',
+            description: 'AI Interview Agent for testing'
+          }
+        ])
+      }
+    } catch (error) {
+      console.error('Failed to load agents:', error)
+      // Add fallback demo agent on error
+      setAvailableAgents([
+        {
+          id: 2799,
+          name: 'InterviewBot (Demo Agent)',
+          description: 'AI Interview Agent for testing'
+        }
+      ])
+    } finally {
+      setIsLoadingAgents(false)
+    }
+  }
+
+  // Add a refresh agents function
+  const refreshAgents = async () => {
+    setIsLoadingAgents(true)
+    try {
+      console.log('Refreshing agents...')
+      const agents = await omnidimensionAPI.listInterviewAgents()
+      console.log('Agents response:', agents)
+      setAvailableAgents(agents || [])
+      
+      if (!agents || agents.length === 0) {
+        console.log('No agents found, adding demo agent')
+        setAvailableAgents([
+          {
+            id: 2799,
+            name: 'InterviewBot (Demo Agent)',
+            description: 'AI Interview Agent for testing'
+          }
+        ])
+      }
+    } catch (error) {
+      console.error('Failed to refresh agents:', error)
+      setAvailableAgents([
+        {
+          id: 2799,
+          name: 'InterviewBot (Demo Agent)',
+          description: 'AI Interview Agent for testing'
+        }
+      ])
+    } finally {
+      setIsLoadingAgents(false)
+    }
+  }
+
+  // Add a demo function for testing OmniDimension API
+  const triggerDemoInterviewCall = async () => {
+    const agentId = 2799; // Your InterviewBot's ID
+    const demoPhoneNumber = phoneNumber || '+1234567890'; // Use entered phone number or demo
+    const interviewConfig: OmniDimensionConfig = {
+      jobRole: practiceConfig?.jobRole || 'Software Engineer',
+      difficultyLevel: practiceConfig?.difficultyLevel || 'intermediate',
+      targetCompany: practiceConfig?.targetCompany || 'OmniDimension'
+    };
+    const candidateName = 'Demo Candidate';
+
+    console.log(`Attempting to dispatch call for ${candidateName} to ${demoPhoneNumber} using Agent ID: ${agentId}...`);
+
+    try {
+      const response = await omnidimensionAPI.dispatchInterviewCall(
+        agentId,
+        demoPhoneNumber,
+        interviewConfig,
+        candidateName
+      );
+      console.log('Call dispatched successfully:', response);
+      alert('Call initiated successfully! Check your phone.');
+      setShowCallInterface(false);
+      setPhoneNumber('');
+      setSelectedAgentId(null);
+    } catch (error: any) {
+      console.error('Error dispatching call:', error.message);
+      alert(`Failed to initiate call: ${error.message}. Please check console for details.`);
+    }
+  };
+
+  // Update the existing dispatchCall function with better error handling
+  const dispatchCall = async () => {
+    if (!phoneNumber || !selectedAgentId || !practiceConfig) {
+      alert('Please provide phone number and select an agent')
+      return
+    }
+
+    setIsDispatchingCall(true)
+    try {
+      const response = await omnidimensionAPI.dispatchInterviewCall(
+        selectedAgentId,
+        phoneNumber,
+        practiceConfig
+      )
+      
+      console.log('Call dispatched successfully:', response);
+      alert('Interview call dispatched successfully! Check your phone.')
+      setShowCallInterface(false)
+      setPhoneNumber('')
+      setSelectedAgentId(null)
+    } catch (error: any) {
+      console.error('Failed to dispatch call:', error)
+      alert(`Failed to dispatch call: ${error.message}. Please check console for details.`)
+    } finally {
+      setIsDispatchingCall(false)
+    }
+  }
+
+  // Function to load call logs
+  const loadCallLogs = async () => {
+    try {
+      const logs = await omnidimensionAPI.getInterviewCallLogs()
+      setCallLogs(logs || [])
+      setShowCallLogs(true)
+    } catch (error) {
+      console.error('Failed to load call logs:', error)
+    }
+  }
 
   const startSession = async () => {
     if (!practiceConfig) {
@@ -827,6 +984,23 @@ Instructions:
                   <Code className="w-5 h-5" />
                   {isCodeMode ? 'Exit Code Mode' : 'Write Code'}
                 </button>
+
+                <button
+                  onClick={() => setShowCallInterface(true)}
+                  disabled={!isSessionActive}
+                  className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-green-500 hover:bg-green-600 text-white transition-all duration-300 disabled:opacity-50"
+                >
+                  <Phone className="w-5 h-5" />
+                  Schedule Phone Interview
+                </button>
+
+                <button
+                  onClick={loadCallLogs}
+                  className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white transition-all duration-300"
+                >
+                  <Phone className="w-5 h-5" />
+                  View Call Logs
+                </button>
               </div>
             </div>
 
@@ -1163,6 +1337,160 @@ Instructions:
           </div>
           <div className="text-xs text-dark-300 mt-2">Click "Stop Recording" to submit your answer</div>
         </div>
+      )}
+
+      {/* Call Interface Modal */}
+      {showCallInterface && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+          onClick={() => setShowCallInterface(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-3 right-3 text-dark-400 hover:text-dark-700 text-2xl"
+              onClick={() => setShowCallInterface(false)}
+            >
+              ×
+            </button>
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <Phone className="w-6 h-6 text-green-500" />
+              Schedule Phone Interview
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-700 mb-2">
+                  Phone Number (with country code)
+                </label>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="+15551234567"
+                  className="w-full p-3 border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-sm font-medium text-dark-700">
+                    Select Interview Agent
+                  </label>
+                  <button
+                    onClick={refreshAgents}
+                    disabled={isLoadingAgents}
+                    className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                  >
+                    {isLoadingAgents ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+                {isLoadingAgents ? (
+                  <div className="w-full p-3 border border-dark-200 rounded-lg bg-dark-50">
+                    Loading agents...
+                  </div>
+                ) : (
+                  <select
+                    value={selectedAgentId || ''}
+                    onChange={(e) => setSelectedAgentId(Number(e.target.value))}
+                    className="w-full p-3 border border-dark-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Select an agent</option>
+                    {availableAgents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name || `Agent ${agent.id}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {availableAgents.length === 0 && !isLoadingAgents && (
+                  <p className="text-xs text-red-600 mt-1">
+                    No agents available. Using demo agent (ID: 2799).
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={dispatchCall}
+                  disabled={!phoneNumber || !selectedAgentId || isDispatchingCall}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isDispatchingCall ? 'Dispatching...' : 'Schedule Call'}
+                </button>
+                <button
+                  onClick={triggerDemoInterviewCall}
+                  disabled={!phoneNumber || isDispatchingCall}
+                  className="px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                  title="Test with Agent ID 2799"
+                >
+                  Demo
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Call Logs Modal */}
+      {showCallLogs && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+          onClick={() => setShowCallLogs(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-8 max-w-2xl w-full relative max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-3 right-3 text-dark-400 hover:text-dark-700 text-2xl"
+              onClick={() => setShowCallLogs(false)}
+            >
+              ×
+            </button>
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <Phone className="w-6 h-6 text-blue-500" />
+              Call Logs
+            </h2>
+            <div className="space-y-4">
+              {callLogs.length === 0 ? (
+                <p className="text-dark-600">No call logs found.</p>
+              ) : (
+                callLogs.map((log) => (
+                  <div key={log.id} className="border border-dark-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-semibold text-dark-900">
+                          Call to {log.to_number}
+                        </h3>
+                        <p className="text-sm text-dark-600">
+                          {new Date(log.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        log.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        log.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {log.status}
+                      </span>
+                    </div>
+                    {log.duration && (
+                      <p className="text-sm text-dark-600">
+                        Duration: {Math.round(log.duration / 60)} minutes
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </motion.div>
       )}
     </div>
   )

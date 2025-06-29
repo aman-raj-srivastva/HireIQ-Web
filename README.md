@@ -9,6 +9,7 @@ A modern, aesthetically appealing website for AI-powered interview practice with
 - **Multiple Interview Types**: Practice behavioral, technical, and case study interviews
 - **Real-time Coaching**: Interactive chat interface with AI analysis
 - **Code Writing & Submission**: Write and submit code to answer technical questions with AI review
+- **Phone Interview Calls**: Schedule real phone interviews using OmniDimension AI agents
 - **Voice & Video Support**: Record audio and video for comprehensive feedback
 - **Progress Tracking**: Monitor your improvement with detailed analytics
 - **Modern UI/UX**: Beautiful, responsive design with smooth animations
@@ -42,12 +43,15 @@ A modern, aesthetically appealing website for AI-powered interview practice with
    cp env.example .env.local
    ```
    
-   Edit `.env.local` and add your Groq API key:
+   Edit `.env.local` and add your API keys:
    ```env
    NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key_here
+   NEXT_PUBLIC_OMNIDIM_API_KEY=your_omnidimension_api_key_here
    ```
    
-   Get your API key from: https://console.groq.com/
+   Get your API keys from:
+   - Groq: https://console.groq.com/
+   - OmniDimension: https://www.omnidim.io/ (for phone interviews)
 
 4. **Test your API key** (Optional but recommended)
    ```bash
@@ -123,6 +127,13 @@ node scripts/test-api.js gsk_your_key_here
 - Write your code in the syntax-highlighted editor
 - Submit code for AI review and feedback
 - The AI interviewer will analyze your code and ask follow-up questions
+
+**Phone Interview Feature:**
+- Click "Schedule Phone Interview" to set up a real phone call
+- Enter your phone number with country code (e.g., +15551234567)
+- Select an available OmniDimension AI agent
+- The AI will call you and conduct a real interview over the phone
+- View call logs to track your phone interview history
 
 ### API Status Monitoring
 - **Practice Page**: Shows API status indicator in the header
